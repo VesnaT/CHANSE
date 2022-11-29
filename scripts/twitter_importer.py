@@ -7,7 +7,7 @@ Twitter importer.
   Author Tweets Count, Author Following Count, Author Followers Count,
   Author Listed Count, Author Verified, Longitude, Latitude]
 
-- save the table to tweets.pkl
+- save the table to data/twitter/tweets_{start_date}_{end_date}.pkl
 
 """
 import logging
@@ -18,6 +18,7 @@ import pandas as pd
 
 from Orange.data import table_from_frame, Domain, Table, ContinuousVariable, \
     StringVariable, DiscreteVariable, TimeVariable
+from scripts import run_with_log
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "twitter")
 
@@ -70,7 +71,8 @@ def _table_from_df(df: pd.DataFrame) -> Table:
     for (col_name, cls), var in zip(MAPPERS, table.domain.metas):
         assert var.name == col_name
         if not isinstance(var, cls):
-            logging.debug(f"{var.name} is {type(var)} instead of {cls}.")
+            logging.debug(f"Variable '{var.name}' is {type(var)} "
+                          f"instead of {cls} (as in Twitter widget).")
 
     assert len(table.domain.attributes) == 0
     assert len(table.domain.class_vars) == 0
@@ -79,6 +81,7 @@ def _table_from_df(df: pd.DataFrame) -> Table:
     return table
 
 
+@run_with_log(os.path.splitext(os.path.split(__file__)[1])[0])
 def run():
     """
     Read Tweets from disc, crate Orange.data.Table and save it as .pkl.
@@ -91,18 +94,4 @@ def run():
 
 
 if __name__ == "__main__":
-    dir_name, log_file_name = os.path.split(__file__)
-    log_file_name, _ = os.path.splitext(log_file_name)
-    log_path = os.path.join(dir_name, f"{log_file_name}.log")
-    logging.basicConfig(level=logging.DEBUG,
-                        filename=log_path,
-                        filemode="a",
-                        format="%(asctime)s %(levelname)-8s %(message)s",
-                        datefmt="%Y-%m-%d %H:%M:%S")
-    try:
-        logging.info("Started")
-        run()
-        logging.info("Finished")
-    except Exception as ex:
-        logging.exception(ex)
-        raise ex
+    run()

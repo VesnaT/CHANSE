@@ -21,7 +21,6 @@ crontab -e
 0 0 * * 4 /Users/vesna/miniconda3/bin/python /Users/vesna/CHANSE/scripts/twitter_scraper.py
 """
 import datetime
-import logging
 import os
 from functools import partial
 from itertools import product
@@ -30,6 +29,8 @@ from typing import List, Optional
 import pandas as pd
 from tweepy import Client, Paginator
 from tweepy.tweet import Tweet
+
+from scripts import run_with_log
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "twitter")
 
@@ -158,7 +159,7 @@ def _fetch_batch(
     for i, response in enumerate(paginator):
         users = {u.id: u for u in response.includes.get("users", [])}
         places = {p.id: p for p in response.includes.get("places", [])}
-        for tweet in response.data:
+        for tweet in response.data or []:
             ser = pd.Series(
                 [func(tweet, users, places) for _, func in MAPPERS],
                 [name for name, _ in MAPPERS]
@@ -169,33 +170,20 @@ def _fetch_batch(
 
 def _save(df: pd.DataFrame):
     file_name = f"{datetime.datetime.now().strftime('%Y%m%d')}.pkl"
-    if os.path.exists(DATA_DIR):
+    if not os.path.exists(DATA_DIR):
         os.makedirs(DATA_DIR)
     path = os.path.join(DATA_DIR, file_name)
     df.to_pickle(path)
 
 
+@run_with_log(os.path.splitext(os.path.split(__file__)[1])[0])
 def run():
     """
-    Collect approximately 450.000 tweets and save the as a pd.DataFrame
+    Collect approximately 450.000 tweets and save them as a pd.DataFrame
     """
     df = _fetch(SYSTEM_KEYWORDS, VALUE_KEYWORDS, lang="en")
     _save(df)
 
 
 if __name__ == "__main__":
-    dir_name, log_file_name = os.path.split(__file__)
-    log_file_name, _ = os.path.splitext(log_file_name)
-    log_path = os.path.join(dir_name, f"{log_file_name}.log")
-    logging.basicConfig(level=logging.DEBUG,
-                        filename=log_path,
-                        filemode="a",
-                        format="%(asctime)s %(levelname)-8s %(message)s",
-                        datefmt="%Y-%m-%d %H:%M:%S")
-    try:
-        logging.info("Started")
-        run()
-        logging.info("Finished")
-    except Exception as ex:
-        logging.exception(ex)
-        raise ex
+    run()

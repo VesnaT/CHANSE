@@ -1,0 +1,3 @@
+tweepy
+PyPDF2
+pycryptodome
