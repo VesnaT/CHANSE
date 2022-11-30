@@ -1,3 +1,4 @@
 tweepy
 PyPDF2
 pycryptodome
+beautifulsoup4

@@ -152,6 +152,7 @@ def _fetch_batch(
         user_fields=["description", "public_metrics", "verified"],
         place_fields=["country_code"],
         expansions=["author_id", "in_reply_to_user_id", "geo.place_id"],
+        start_time=datetime.datetime.now() - datetime.timedelta(hours=24),
         limit=limit
     )
 
