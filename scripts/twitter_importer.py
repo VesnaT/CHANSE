@@ -18,7 +18,8 @@ import pandas as pd
 
 from Orange.data import table_from_frame, Domain, Table, ContinuousVariable, \
     StringVariable, DiscreteVariable, TimeVariable
-from scripts import run_with_log
+
+from utils import run_with_log
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "twitter")
 
@@ -71,8 +72,8 @@ def _table_from_df(df: pd.DataFrame) -> Table:
     for (col_name, cls), var in zip(MAPPERS, table.domain.metas):
         assert var.name == col_name
         if not isinstance(var, cls):
-            logging.debug(f"Variable '{var.name}' is {type(var)} "
-                          f"instead of {cls} (as in Twitter widget).")
+            logging.info(f"Variable '{var.name}' is {type(var)} "
+                         f"instead of {cls} (as in Twitter widget).")
 
     assert len(table.domain.attributes) == 0
     assert len(table.domain.class_vars) == 0

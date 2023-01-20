@@ -1,26 +1,26 @@
 """
 Twitter scaper.
     Functions for collecting tweets:
-    - The query will search for tweets that include at least one word from
-      1. Algorithmic System Words column and one word form 2. Value Words
-      column of CHANSE_Query_SAMPLE_2.xlsx file.
-    - The query will also search for retweets.
-    - The query will search only for English tweets.
-      For keywords change the language.
-    - The scraper will fetch approximately 450.000 tweets
-      and save them on a disk.
-    - The query will be executed every Thursday of the week.
+    - The query searches for tweets that include at least one word from
+      1. Algorithmic System Words column CHANSE_Twitter_Query_Jan_2023.xlsx.
+      For English tweets if also considers column Value Words column.
+    - The query does not search for retweets.
+    - The scraper fetches approximately 16.000 tweets and saves them on a disk
+      (16.000 * 31 < 500.000).
 
 To run a script, provide a BEARER_TOKEN.
+The TOKEN can fetch 500k tweets/month.
 
-To make a cron job:
+To make a cron job (daily):
 which python3
 pwd
 crontab -e
 
-0 0 * * 4 /Users/vesna/miniconda3/bin/python /Users/vesna/CHANSE/scripts/twitter_scraper.py
+* * * * * /Users/vesna/miniconda3/bin/python3 /Users/vesna/CHANSE/scripts/twitter_scraper.py
+0 7 * * * /home/vesna/venv/bin/python3 /home/vesna/CHANSE/scripts/twitter_scraper.py
 """
 import datetime
+import logging
 import os
 from functools import partial
 from itertools import product
@@ -30,38 +30,26 @@ import pandas as pd
 from tweepy import Client, Paginator
 from tweepy.tweet import Tweet
 
-from scripts import run_with_log
+from utils import run_with_log
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "twitter")
 
 BEARER_TOKEN: Optional[str] = NotImplemented
 
-SYSTEM_KEYWORDS = [
-    "algorithm", "artificial intelligence", "AI", "automated", "automation",
-    "machine intelligence", "machine learning", "deep learning ",
-    "neuro network", "neural network", "neural net", "smart cit",
-    "visualisation", "visualization", "image recognition",
-    "facial recognition", "recommender system", "bot", "robot",
-    "self-driving", "big data", "data driven", "bayesian", "artificial neur",
-    "NLP", "natural language processing", "computer vision", "digitalisation",
-    "digitalization", "information model", "sensor", "decision support",
-    "calculation", "smart", "electrification", "app", "targeted"
-]
-VALUE_KEYWORDS = [
-    "fair", "transparent", "responsib", "competit", "sustainable",
-    "explainab", "ethic", "autonomy", "human", "solidarity", "just",
-    "benevolence", "responsib", "trust", "care", "wellness", "effective",
-    "robust", "efficien", "optimisation", "optimization", "excellen",
-    "quality", "precision", "savings", "guarantee", "supplement", "workload",
-    "speed", "distribut", "risk", "identity", "security", "safety", "flow",
-    "seamlessness", "control", "standard"
-]
 
-
+# helper functions to create KEYWORDS lists
 def __get_keywords(words_column: str) -> List[str]:
     path = os.path.join(DATA_DIR, "..", "CHANSE_Query_SAMPLE_2.xlsx")
     df = pd.read_excel(path)
     return df[~pd.isna(df[words_column])][words_column].tolist()
+
+
+def __get_keywords_1(words_column: str, n: int) -> List[str]:
+    # words_column: Unnamed: 2, Unnamed: 5
+    # n: 2, 1
+    path = os.path.join(DATA_DIR, "..", "CHANSE_Twitter_Query_Jan_2023.xlsx")
+    df = pd.read_excel(path)
+    return df[~pd.isna(df[words_column])][words_column].tolist()[n:]
 
 
 def __get_country_code(tweet: Tweet, _, places) -> Optional[str]:
@@ -96,15 +84,51 @@ MAPPERS = [
 ]
 
 
-def _fetch(
-        sys_keywords: List[str],
-        val_keywords: List[str],
-        lang: str = None,
-) -> pd.DataFrame:
-    queries = _create_query(13, sys_keywords, val_keywords)
-    limit = 450 // len(queries)
-    dfs = [_fetch_batch(query, lang=lang, limit=limit) for query in queries]
-    return pd.concat(dfs)
+def _fetch_reduced_english() -> pd.DataFrame:
+    sys_keywords = [
+        "algorithm", "artificial intelligence", "AI", "automated",
+        "automation", "machine learning", "deep learning", "neural net",
+        "smart cit", "facial recognition", "robot", "self-driving",
+        "autonomous", "big data", "data driven"
+    ]
+    val_keywords = [
+        "fair", "accountab", "transparent", "explainab", "compet",
+        "sustainable", "ethic", "autonomy", "solidarity", "justice",
+        "responsib", "trust", "care", "wellness", "guarantee", "identity",
+        "safety", "black box", "bias", "concern"
+    ]
+    queries = _create_query(20, sys_keywords, val_keywords)
+    assert len(queries) == 1
+    query = queries[0]
+    logging.info("Language: en")
+    df = _fetch_batch(query, lang="en", limit=140)
+    logging.info(f"# Tweets: {len(df)}")
+    return df
+
+
+def _fetch_other_countries() -> List[pd.DataFrame]:
+    keywords = [
+        ("da", 3, ["algoritme", "visualisering", "kunstig intelligens",
+                   "billedgenkendelse", "ansigtsgenkendelse"]),
+        ("fi", 3, ["automaatti", "algoritmi", "tekoäly", "koneoppimi",
+                   "syväoppimi"]),
+        ("nl", 13, ["intelligence artificielle ", "automatisation",
+                    "décision automatisée", "apprentissage automatique",
+                    "apprentissage profond"]),
+        ("sv", 1, ["maskininlärning", "automatisering", "beslutsstöd"]),
+        ("sl", 1, ["Umetna inteligenca", "Algoritem", "Avtomatizacija",
+                   "Strojno učenje"]),
+    ]
+    dfs = []
+    for lng, limit, words in keywords:
+        logging.info(f"Language: {lng}")
+        query = " OR ".join(words)
+        query = f"({query})"
+        query += f" lang:{lng}" if lng != "nl" else f" (lang:{lng} OR lang:fr)"
+        df = _fetch_batch(query, lang=None, limit=limit)
+        logging.info(f"# Tweets: {len(df)}")
+        dfs.append(df)
+    return dfs
 
 
 def _create_query(
@@ -136,12 +160,15 @@ def _fetch_batch(
         allow_retweets: bool = False,
         limit: int = 450,
 ) -> pd.DataFrame:
+    assert len(query) <= 512
     client = Client(BEARER_TOKEN)
 
     if not allow_retweets:
         query += " -is:retweet"
     if lang:
         query += f" lang:{lang}"
+
+    logging.info(query)
 
     paginator = Paginator(
         client.search_recent_tweets,
@@ -182,7 +209,10 @@ def run():
     """
     Collect approximately 450.000 tweets and save them as a pd.DataFrame
     """
-    df = _fetch(SYSTEM_KEYWORDS, VALUE_KEYWORDS, lang="en")
+    dfs = _fetch_other_countries()
+    df_en = _fetch_reduced_english()
+    dfs.append(df_en)
+    df = pd.concat(dfs)
     _save(df)
 
 
