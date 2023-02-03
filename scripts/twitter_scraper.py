@@ -38,16 +38,10 @@ BEARER_TOKEN: Optional[str] = NotImplemented
 
 
 # helper functions to create KEYWORDS lists
-def __get_keywords(words_column: str) -> List[str]:
-    path = os.path.join(DATA_DIR, "..", "CHANSE_Query_SAMPLE_2.xlsx")
-    df = pd.read_excel(path)
-    return df[~pd.isna(df[words_column])][words_column].tolist()
-
-
-def __get_keywords_1(words_column: str, n: int) -> List[str]:
+def __get_keywords(words_column: str = "Unnamed: 2", n: int = 2) -> List[str]:
     # words_column: Unnamed: 2, Unnamed: 5
     # n: 2, 1
-    path = os.path.join(DATA_DIR, "..", "CHANSE_Twitter_Query_Jan_2023.xlsx")
+    path = os.path.join(DATA_DIR, "..", "CHANSE_Query.xlsx")
     df = pd.read_excel(path)
     return df[~pd.isna(df[words_column])][words_column].tolist()[n:]
 
@@ -110,12 +104,15 @@ def _fetch_other_countries() -> List[pd.DataFrame]:
     keywords = [
         ("da", 3, ["algoritme", "visualisering", "kunstig intelligens",
                    "billedgenkendelse", "ansigtsgenkendelse"]),
-        ("fi", 3, ["automaatti", "algoritmi", "tekoäly", "koneoppimi",
-                   "syväoppimi"]),
+        ("fi", 3, ["automaat", "algoritm", "tekoäly", "älyteknologi",
+                   "suosittelujärjestelm"]),
         ("nl", 13, ["intelligence artificielle ", "automatisation",
                     "décision automatisée", "apprentissage automatique",
-                    "apprentissage profond"]),
-        ("sv", 1, ["maskininlärning", "automatisering", "beslutsstöd"]),
+                    "apprentissage profond",
+                    "artificiële intelligentie", "kunstmatige intelligentie",
+                    "automatisering", "geautomatiseerde beslissing"]),
+        ("sv", 1, ["maskininlärning", "automatisering",
+                   "algoritmisk beslutsfattande", "algoritm", "datahall"]),
         ("sl", 1, ["Umetna inteligenca", "Algoritem", "Avtomatizacija",
                    "Strojno učenje"]),
     ]
