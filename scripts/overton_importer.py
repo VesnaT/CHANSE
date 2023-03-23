@@ -8,7 +8,11 @@ Overton importer.
    Policy citations, Policy citations (inc self), Document URL, Overton URL,
    Source specific tags, Your tags, Top topics, Content]
 
-- save the table to overton.pkl
+- save the table to data/overton/overton_{country}.pkl
+
+- the output table is feed to {nn}_Collect_Overton_{lang}.ows to produce
+  data/overton/Overton_{lang}_PP.pkl (preprocessed and filtered corpus), which
+  is manually uploaded to the server
 
 """
 import contextlib
@@ -19,32 +23,29 @@ from tempfile import NamedTemporaryFile
 import pandas as pd
 from urllib.request import Request, urlopen
 
-from PyPDF2 import PdfReader
 from bs4 import BeautifulSoup
+from PyPDF2 import PdfReader
 
 from Orange.data import table_from_frame, Table
-from scripts import run_with_log
-
+from scripts.utils import run_with_log
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "overton")
 
 
-def _read() -> pd.DataFrame:
-    dfs = []
-    for file_name in os.listdir(DATA_DIR):
-        if file_name.endswith(".csv"):
-            path = os.path.join(DATA_DIR, file_name)
-            df = pd.read_csv(path)
-            df = df[df["Document URL"] != ""]
-            dfs.append(df)
-    df = pd.concat(dfs)
-    df = df.groupby(df.columns[0]).first()  # remove duplicated IDs
-
-    # TODO: remove condition
-    df = df[df["Document URL"].str.endswith(".pdf")]
-    # df = df[:100]
-    texts = [_read_url(df.iloc[i]["Document URL"]) for i in range(len(df))]
-    df["Content"] = texts
+def _read_country(path: str) -> pd.DataFrame:
+    df = pd.read_csv(path)
+    # remove duplicated IDs
+    df = df.groupby(df.columns[0]).first().reset_index()
+    df["Content"] = ""
+    for i in range(len(df)):
+        # use for 'english' for temp save (just in case...)
+        # stopped at 3676 of total 100000
+        # if i % 100 == 0 and i > 0:
+        #     df.to_pickle(f"overton_temp-en.pkl")
+        #     table = _table_from_df(df)
+        #     table.save(os.path.join(DATA_DIR, f"overton_en.pkl"))
+        # print(i, "of total", len(df))
+        df["Content"].iloc[i] = _read_url(df.iloc[i]["Document URL"])
     return df
 
 
@@ -84,6 +85,7 @@ def __read_pdf(response) -> str:
 
 def _table_from_df(df: pd.DataFrame) -> Table:
     df = df.reset_index()
+    # remove documents where the content could not be read
     df = df[df["Content"] != ""]
     return table_from_frame(df)
 
@@ -93,11 +95,18 @@ def run():
     """
     Read Overton .csv from disc, crate Orange.data.Table and save it as .pkl.
     """
-    df = _read()
-    df.to_pickle("overton_temp.pkl")
-    df = pd.read_pickle("overton_temp.pkl")
-    table = _table_from_df(df)
-    table.save(os.path.join(DATA_DIR, f"overton_UK_sample.pkl"))
+    countries = [# "slovenia", "belgium-dutch", "belgium-french",
+                 # "sweden", "denmark", "finland",
+                  "england"]
+    for key in countries:
+        print()
+        print(key)
+        path = f"/Users/vesna/Documents/Work/Biolab/CHANSE/Data/" \
+               f"Overton/export-2023-03-07-{key}.csv"
+        df = _read_country(path)
+        df.to_pickle(f"overton_temp-{key}.pkl")
+        table = _table_from_df(df)
+        table.save(os.path.join(DATA_DIR, f"overton_{key}.pkl"))
 
 
 if __name__ == "__main__":
