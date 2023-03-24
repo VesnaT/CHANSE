@@ -21,7 +21,6 @@
 		<link id="5" source_node_id="6" sink_node_id="7" source_channel="Data" sink_channel="Data" enabled="true" />
 		<link id="6" source_node_id="7" sink_node_id="3" source_channel="Selected Data" sink_channel="Words" enabled="true" />
 		<link id="7" source_node_id="4" sink_node_id="8" source_channel="Matching Data" sink_channel="Corpus" enabled="true" />
-		<link id="8" source_node_id="9" sink_node_id="1" source_channel="Corpus" sink_channel="Corpus" enabled="true" />
 	</links>
 	<annotations />
 	<thumbnail />
